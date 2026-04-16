@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.pi/
+.DS_Store
+.env
+
+# keep init docs local (per user preference)
+docs/
+AGENTS.md

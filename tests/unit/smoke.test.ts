@@ -1,8 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { main } from '../../src/index.js';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { main } from '../../src/index.ts';
 
-describe('scaffold smoke test', () => {
-  it('returns initialization message', () => {
-    expect(main()).toBe('pi-codexbar scaffold initialized');
-  });
+test('scaffold smoke test returns initialization message', () => {
+  assert.equal(main(), 'pi-codexbar scaffold initialized');
 });

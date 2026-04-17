@@ -1,30 +1,27 @@
-/**
- * Deterministic discovery of the codexbar binary with injected dependencies
- * for zero filesystem side-effects in tests.
- */
-
-export interface CodexbarBinaryDiscoveryDeps {
-  platform: NodeJS.Platform;
-  pathLookup: (name: string) => string | null;
-  fileExists: (path: string) => boolean;
-}
+import { existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 
 const CANONICAL_DARWIN_PATH = '/usr/local/bin/codexbar';
 
-/** Resolve from PATH lookup, returning null when not found. */
-function resolveFromPath(pathLookup: CodexbarBinaryDiscoveryDeps['pathLookup']): string | null {
-  return pathLookup('codexbar');
+function whichCodexbar(): string | null {
+  try {
+    return execSync('which codexbar', { encoding: 'utf-8' }).trim() || null;
+  } catch {
+    return null;
+  }
 }
 
-export function discoverCodexbarBinary(deps: CodexbarBinaryDiscoveryDeps): string {
-  // On macOS, prefer the canonical install location.
-  if (deps.platform === 'darwin' && deps.fileExists(CANONICAL_DARWIN_PATH)) {
+export function discoverCodexbarBinary(
+  platform: NodeJS.Platform = process.platform,
+  fileExists: (p: string) => boolean = existsSync,
+  pathLookup: () => string | null = whichCodexbar,
+): string {
+  if (platform === 'darwin' && fileExists(CANONICAL_DARWIN_PATH)) {
     return CANONICAL_DARWIN_PATH;
   }
 
-  // All platforms fall back to PATH lookup.
-  const fromPath = resolveFromPath(deps.pathLookup);
-  if (fromPath !== null) {
+  const fromPath = pathLookup();
+  if (fromPath) {
     return fromPath;
   }
 

@@ -3,6 +3,7 @@ import { execSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
+const DEFAULT_TIMEOUT_MS = 5000;
 
 export function discoverBinary(): string {
   if (process.platform === 'darwin' && existsSync('/usr/local/bin/codexbar')) {
@@ -17,7 +18,7 @@ export function discoverBinary(): string {
   throw new Error('codexbar binary not found');
 }
 
-export async function runJson<T>(binaryPath: string, args: string[], timeoutMs = 5000): Promise<T> {
+export async function runJson<T>(binaryPath: string, args: string[], timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   try {
     const { stdout } = await execFileAsync(binaryPath, args, { timeout: timeoutMs });
     return JSON.parse(stdout) as T;
@@ -33,9 +34,9 @@ export async function runJson<T>(binaryPath: string, args: string[], timeoutMs =
   }
 }
 
-// FIXME: Let's move timeoutMs to constant in this module file
-// TODO: Why separate run and runJson?
-export async function run(binaryPath: string, args: string[], timeoutMs = 5000): Promise<void> {
+// run() is for commands that don't return JSON (e.g. provider switch).
+// runJson() is for commands that return JSON (e.g. provider list).
+export async function run(binaryPath: string, args: string[], timeoutMs = DEFAULT_TIMEOUT_MS): Promise<void> {
   try {
     await execFileAsync(binaryPath, args, { timeout: timeoutMs });
   } catch (err: unknown) {

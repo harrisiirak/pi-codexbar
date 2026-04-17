@@ -2,9 +2,6 @@ import { readFile, writeFile, unlink, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { discoverBinary, runJson, run } from './codexbar.ts';
 
-// FIXME: Remove these uglyass seprate comment lines
-// ── Types ──────────────────────────────────────────────────────────────
-
 export type ProviderId = string;
 
 export interface Provider {
@@ -18,8 +15,6 @@ export interface ProviderState {
   selectedId: ProviderId;
   fetchedAt: number;
 }
-
-// ── Normalize ──────────────────────────────────────────────────────────
 
 interface RawProvider { id: string; name: string; active: boolean }
 interface RawPayload { providers: RawProvider[]; active_provider: string }
@@ -35,8 +30,6 @@ function normalize(raw: RawPayload): ProviderState {
     fetchedAt: Date.now(),
   };
 }
-
-// ── Cache ──────────────────────────────────────────────────────────────
 
 const CACHE_FILE = '.pi-cache/provider-state.json';
 const CACHE_TTL_MS = 15_000;
@@ -63,8 +56,6 @@ async function writeCache(baseDir: string, state: ProviderState): Promise<void> 
 async function clearCache(baseDir: string): Promise<void> {
   try { await unlink(cachePath(baseDir)); } catch {}
 }
-
-// ── Public API ─────────────────────────────────────────────────────────
 
 export async function getProviderState(binaryPath?: string, cacheDir?: string): Promise<ProviderState> {
   const dir = cacheDir ?? process.cwd();

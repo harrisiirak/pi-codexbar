@@ -18,6 +18,11 @@
     "codexbar",
     "cli"
   ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
   "author": "",
   "license": "MIT",
   "engines": {

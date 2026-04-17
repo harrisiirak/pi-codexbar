@@ -1,6 +1,0 @@
-{
-  "providers": [
-    { "id": "openai", "name": "OpenAI GPT-4", "active": true }
-  ],
-  "active_provider": "openai"
-}

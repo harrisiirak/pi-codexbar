@@ -1,67 +1,31 @@
-/**
- * CodexBar JSON command wrapper with injected shell runner.
- *
- * Runs a CodexBar CLI subcommand, parses stdout as JSON, and provides
- * structured errors for non-zero exits, parse failures, and timeouts.
- */
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
-export interface ShellRunResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-  timedOut: boolean;
-}
-
-export interface CodexbarJsonCommandDeps {
-  run: (binaryPath: string, args: string[], timeoutMs: number) => Promise<ShellRunResult>;
-}
-
-export type CodexbarCommandErrorCategory = 'non-zero-exit' | 'parse' | 'timeout';
-
-export interface CodexbarCommandError {
-  category: CodexbarCommandErrorCategory;
-  exitCode?: number;
-  stdoutSnippet?: string;
-  stderrSnippet?: string;
-}
-
-/** Create a structured CodexbarCommandError with a message. */
-function createCommandError(
-  category: CodexbarCommandErrorCategory,
-  opts: { exitCode?: number; stdoutSnippet?: string; stderrSnippet?: string },
-): Error & CodexbarCommandError {
-  const message = `codexbar command failed: ${category}`;
-  const err = Object.assign(new Error(message), {
-    category,
-    ...opts,
-  }) as Error & CodexbarCommandError;
-  return err;
-}
+const execFileAsync = promisify(execFile);
 
 export async function runCodexbarJson<T>(
-  deps: CodexbarJsonCommandDeps,
   binaryPath: string,
   args: string[],
-  timeoutMs: number,
+  timeoutMs: number = 5000,
 ): Promise<T> {
-  const result = await deps.run(binaryPath, args, timeoutMs);
+  let stdout: string;
+  let stderr: string;
 
-  if (result.timedOut) {
-    throw createCommandError('timeout', { exitCode: result.exitCode });
-  }
-
-  if (result.exitCode !== 0) {
-    throw createCommandError('non-zero-exit', {
-      exitCode: result.exitCode,
-      stderrSnippet: result.stderr,
-    });
+  try {
+    const result = await execFileAsync(binaryPath, args, { timeout: timeoutMs });
+    stdout = result.stdout;
+    stderr = result.stderr;
+  } catch (err: unknown) {
+    const e = err as { killed?: boolean; code?: string; stdout?: string; stderr?: string };
+    if (e.killed || e.code === 'ETIMEDOUT') {
+      throw new Error(`codexbar command timed out: ${args.join(' ')}`);
+    }
+    throw new Error(`codexbar command failed: ${e.stderr ?? ''}`);
   }
 
   try {
-    return JSON.parse(result.stdout) as T;
+    return JSON.parse(stdout) as T;
   } catch {
-    throw createCommandError('parse', {
-      stdoutSnippet: result.stdout,
-    });
+    throw new Error(`codexbar returned invalid JSON: ${stdout.slice(0, 200)}`);
   }
 }

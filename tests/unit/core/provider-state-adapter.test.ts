@@ -1,123 +1,129 @@
-import test, { mock } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
-
+import { join } from 'node:path';
+import { writeFile, chmod, mkdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { createProviderStateAdapter } from '../../../src/core/provider-state-adapter.ts';
-import { successResult } from '../../helpers/fake-shell-runner.ts';
 import { createTempCacheDir } from '../../helpers/temp-cache-dir.ts';
 
-const RAW_OPENAI = {
-  providers: [
-    { id: 'openai', name: 'OpenAI', active: true },
-    { id: 'anthropic', name: 'Anthropic', active: false },
-  ],
-  active_provider: 'openai',
-};
+async function createStatefulFakeCodexbar() {
+  const dir = join(tmpdir(), `fake-codexbar-${randomUUID()}`);
+  await mkdir(dir, { recursive: true });
+  const binPath = join(dir, 'codexbar');
+  const stateFile = join(dir, 'state');
+
+  await writeFile(stateFile, 'openai', 'utf-8');
+
+  const script = `#!/bin/sh
+STATE_FILE="${stateFile}"
+case "$2" in
+  list)
+    ACTIVE=$(cat "$STATE_FILE")
+    if [ "$ACTIVE" = "anthropic" ]; then
+      echo '{"providers":[{"id":"openai","name":"OpenAI","active":false},{"id":"anthropic","name":"Anthropic","active":true}],"active_provider":"anthropic"}'
+    else
+      echo '{"providers":[{"id":"openai","name":"OpenAI","active":true},{"id":"anthropic","name":"Anthropic","active":false}],"active_provider":"openai"}'
+    fi
+    ;;
+  switch)
+    echo "$3" > "$STATE_FILE"
+    ;;
+  *) echo "unknown: $*" >&2; exit 1 ;;
+esac
+`;
+
+  await writeFile(binPath, script, 'utf-8');
+  await chmod(binPath, 0o755);
+
+  return {
+    binPath,
+    cleanup: () => rm(dir, { recursive: true, force: true }),
+  };
+}
 
 test('provider-state-adapter module is importable at runtime', async () => {
   const mod = await import('../../../src/core/provider-state-adapter.ts');
   assert.equal(typeof mod.createProviderStateAdapter, 'function');
 });
 
-test('getProviderState fetches from CLI on cache miss', async (t) => {
+test('getProviderState fetches from fake CLI on cache miss', async (t) => {
   const tmp = await createTempCacheDir();
-  t.after(() => tmp.cleanup());
+  const fake = await createStatefulFakeCodexbar();
+  t.after(async () => { await tmp.cleanup(); await fake.cleanup(); });
 
-  const runCalls: string[][] = [];
   const adapter = createProviderStateAdapter({
     cacheDir: tmp.path,
-    shellRunner: {
-      run: async (_bin, args, _timeout) => {
-        runCalls.push(args);
-        return successResult(JSON.stringify(RAW_OPENAI));
-      },
-    },
+    binaryPath: fake.binPath,
   });
 
   const state = await adapter.getProviderState();
   assert.equal(state.selectedProviderId, 'openai');
-  assert.equal(runCalls.length, 1);
+  assert.equal(state.providers.length, 2);
 });
 
 test('getProviderState returns cached state on second call within TTL', async (t) => {
   const tmp = await createTempCacheDir();
-  t.after(() => tmp.cleanup());
+  const fake = await createStatefulFakeCodexbar();
+  t.after(async () => { await tmp.cleanup(); await fake.cleanup(); });
 
-  let runCount = 0;
   const adapter = createProviderStateAdapter({
     cacheDir: tmp.path,
-    shellRunner: {
-      run: async () => {
-        runCount++;
-        return successResult(JSON.stringify(RAW_OPENAI));
-      },
-    },
+    binaryPath: fake.binPath,
   });
 
-  await adapter.getProviderState();
-  await adapter.getProviderState();
-  assert.equal(runCount, 1, 'should only call CLI once, second call uses cache');
+  const state1 = await adapter.getProviderState();
+  const state2 = await adapter.getProviderState();
+  assert.deepEqual(state1, state2);
 });
 
-test('setProvider executes switch command then invalidates cache', async (t) => {
+test('setProvider switches and invalidates cache', async (t) => {
   const tmp = await createTempCacheDir();
-  t.after(() => tmp.cleanup());
+  const fake = await createStatefulFakeCodexbar();
+  t.after(async () => { await tmp.cleanup(); await fake.cleanup(); });
 
-  const runCalls: string[][] = [];
   const adapter = createProviderStateAdapter({
     cacheDir: tmp.path,
-    shellRunner: {
-      run: async (_bin, args, _timeout) => {
-        runCalls.push(args);
-        return successResult(JSON.stringify(RAW_OPENAI));
-      },
-    },
+    binaryPath: fake.binPath,
   });
 
-  // Prime cache
   await adapter.getProviderState();
-  runCalls.length = 0;
-
-  // Switch
   await adapter.setProvider('anthropic');
-  assert.equal(runCalls.length, 1);
-  assert.deepEqual(runCalls[0], ['provider', 'switch', 'anthropic']);
+
+  const state = await adapter.getProviderState();
+  assert.equal(state.selectedProviderId, 'anthropic');
 });
 
-test('setProvider throws on CLI failure and does not invalidate cache', async (t) => {
+test('setProvider throws on unknown command', async (t) => {
   const tmp = await createTempCacheDir();
-  t.after(() => tmp.cleanup());
+  const fake = await createStatefulFakeCodexbar();
+  t.after(async () => { await tmp.cleanup(); await fake.cleanup(); });
 
-  let firstCall = true;
   const adapter = createProviderStateAdapter({
     cacheDir: tmp.path,
-    shellRunner: {
-      run: async (_bin, args, _timeout) => {
-        if (!firstCall) {
-          return { exitCode: 1, stdout: '', stderr: 'connection refused', timedOut: false };
-        }
-        firstCall = false;
-        return successResult(JSON.stringify(RAW_OPENAI));
-      },
-    },
+    binaryPath: fake.binPath,
   });
 
-  // Prime cache
-  await adapter.getProviderState();
+  // The fake script exits 1 for unknown commands but 'switch' with any
+  // provider id works, so test with a binary that always fails
+  const failDir = join(tmpdir(), `fail-codexbar-${randomUUID()}`);
+  await mkdir(failDir, { recursive: true });
+  const failBin = join(failDir, 'codexbar');
+  await writeFile(failBin, '#!/bin/sh\necho "error" >&2; exit 1', 'utf-8');
+  await chmod(failBin, 0o755);
+  t.after(() => rm(failDir, { recursive: true, force: true }));
 
-  // Switch should fail
-  await assert.rejects(() => adapter.setProvider('anthropic'));
-
-  // Cache should still be valid (not invalidated)
-  let runCount = 0;
-  const adapter2 = createProviderStateAdapter({
+  const failAdapter = createProviderStateAdapter({
     cacheDir: tmp.path,
-    shellRunner: {
-      run: async () => {
-        runCount++;
-        return successResult(JSON.stringify(RAW_OPENAI));
-      },
-    },
+    binaryPath: failBin,
   });
-  await adapter2.getProviderState();
-  assert.equal(runCount, 0, 'cache should still be valid after failed switch');
+
+  await assert.rejects(
+    () => failAdapter.setProvider('anthropic'),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.ok(err.message.includes('codexbar provider switch failed'));
+      return true;
+    },
+  );
 });

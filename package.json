@@ -10,7 +10,7 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --import tsx --test tests/**/*.test.ts",
+    "test": "node --import tsx --test 'tests/**/*.test.ts'",
     "run": "node --import tsx src/index.ts"
   },
   "keywords": [

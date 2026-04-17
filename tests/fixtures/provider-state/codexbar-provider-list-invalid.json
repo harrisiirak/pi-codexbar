@@ -1,0 +1,4 @@
+{
+  "providers": "not-an-array",
+  "active_provider": "openai"
+}

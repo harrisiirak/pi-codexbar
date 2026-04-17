@@ -1,0 +1,8 @@
+{
+  "providers": [
+    { "id": "anthropic", "name": "Anthropic Claude", "active": true },
+    { "id": "openai", "name": "OpenAI GPT-4", "active": false },
+    { "id": "google", "name": "Google Gemini", "active": true }
+  ],
+  "active_provider": "anthropic"
+}

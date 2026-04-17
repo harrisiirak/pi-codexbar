@@ -6,3 +6,5 @@ node_modules/
 # keep init docs local (per user preference)
 docs/
 AGENTS.md
+.worktrees
+.worktrees

@@ -1,12 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { rm } from 'node:fs/promises';
+import { rm, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import createPiCodexbarExtension from '../src/extension.ts';
 import { mockExec } from './helpers/mock-exec.ts';
-import { stripAnsi } from '../src/settings.ts';
+import { stripAnsi, resetSettingsCache, userSettingsPath } from '../src/settings.ts';
+
+async function withTempHome(t: any): Promise<string> {
+  const home = join(tmpdir(), `pi-home-${randomUUID()}`);
+  await mkdir(home, { recursive: true });
+  const prev = process.env.HOME;
+  process.env.HOME = home;
+  resetSettingsCache();
+  t.after(async () => {
+    process.env.HOME = prev;
+    resetSettingsCache();
+    await rm(home, { recursive: true, force: true });
+  });
+  return home;
+}
 
 type EventHandler = (...args: any[]) => Promise<void>;
 
@@ -64,10 +78,113 @@ const CLAUDE_PAYLOAD = [{
   },
 }];
 
-test('registers only codexbar-status command', () => {
+test('registers codexbar-toggle and codexbar-status commands', () => {
   const fakePi = createFakePi();
   createPiCodexbarExtension(fakePi.pi);
-  assert.deepEqual(fakePi.getCommandNames(), ['codexbar-status']);
+  assert.deepEqual(fakePi.getCommandNames().sort(), ['codexbar-status', 'codexbar-toggle']);
+});
+
+test('codexbar-toggle disables auto-refresh on events', async (t) => {
+  await withTempHome(t);
+  const mock = mockExec(t, { 'usage --provider claude --format json': CLAUDE_PAYLOAD });
+  const fakePi = createFakePi('claude');
+  const cache = tmpCacheDir();
+  t.after(async () => { await cache.cleanup(); });
+
+  createPiCodexbarExtension(fakePi.pi, { binaryPath: 'codexbar', cacheDir: cache.dir });
+  await fakePi.callCommand('codexbar-toggle', '');
+  await fakePi.emitEvent('agent_end');
+  await new Promise(r => setTimeout(r, 200));
+
+  assert.equal(fakePi.renderWidget('codexbar-usage').length, 0);
+});
+
+test('codexbar-toggle clears widget when disabling', async (t) => {
+  await withTempHome(t);
+  const mock = mockExec(t, { 'usage --provider claude --format json': CLAUDE_PAYLOAD });
+  const fakePi = createFakePi('claude');
+  const cache = tmpCacheDir();
+  t.after(async () => { await cache.cleanup(); });
+
+  createPiCodexbarExtension(fakePi.pi, { binaryPath: 'codexbar', cacheDir: cache.dir });
+  await fakePi.emitEvent('agent_end');
+  await new Promise(r => setTimeout(r, 500));
+  assert.ok(fakePi.renderWidget('codexbar-usage').length > 0);
+
+  await fakePi.callCommand('codexbar-toggle', '');
+  assert.equal(fakePi.renderWidget('codexbar-usage').length, 0);
+});
+
+test('codexbar-toggle re-enables and re-renders immediately', async (t) => {
+  await withTempHome(t);
+  const mock = mockExec(t, { 'usage --provider claude --format json': CLAUDE_PAYLOAD });
+  const fakePi = createFakePi('claude');
+  const cache = tmpCacheDir();
+  t.after(async () => { await cache.cleanup(); });
+
+  createPiCodexbarExtension(fakePi.pi, { binaryPath: 'codexbar', cacheDir: cache.dir });
+  await fakePi.callCommand('codexbar-toggle', ''); // off
+  await fakePi.callCommand('codexbar-toggle', ''); // on
+  await new Promise(r => setTimeout(r, 500));
+
+  assert.ok(fakePi.renderWidget('codexbar-usage').length > 0);
+});
+
+test('codexbar-toggle persists enabled=false to user settings.json', async (t) => {
+  await withTempHome(t);
+  const mock = mockExec(t, { 'usage --provider claude --format json': CLAUDE_PAYLOAD });
+  const fakePi = createFakePi('claude');
+  const cache = tmpCacheDir();
+  t.after(async () => { await cache.cleanup(); });
+
+  createPiCodexbarExtension(fakePi.pi, { binaryPath: 'codexbar', cacheDir: cache.dir });
+  await fakePi.callCommand('codexbar-toggle', '');
+
+  const raw = await readFile(userSettingsPath(), 'utf-8');
+  assert.deepEqual(JSON.parse(raw), { footer: { enabled: false } });
+});
+
+test('persisted enabled=false stays off across extension reloads', async (t) => {
+  await withTempHome(t);
+  const mock = mockExec(t, { 'usage --provider claude --format json': CLAUDE_PAYLOAD });
+  const cache = tmpCacheDir();
+  t.after(async () => { await cache.cleanup(); });
+
+  const first = createFakePi('claude');
+  createPiCodexbarExtension(first.pi, { binaryPath: 'codexbar', cacheDir: cache.dir });
+  await first.callCommand('codexbar-toggle', ''); // persist disabled
+
+  const second = createFakePi('claude');
+  createPiCodexbarExtension(second.pi, { binaryPath: 'codexbar', cacheDir: cache.dir });
+  await second.emitEvent('agent_end');
+  await new Promise(r => setTimeout(r, 200));
+
+  assert.equal(second.renderWidget('codexbar-usage').length, 0);
+});
+
+test('toggle merges into existing user settings without clobbering other keys', async (t) => {
+  await withTempHome(t);
+  const { writeFile, mkdir } = await import('node:fs/promises');
+  const { dirname } = await import('node:path');
+  await mkdir(dirname(userSettingsPath()), { recursive: true });
+  await writeFile(userSettingsPath(), JSON.stringify({
+    footer: { placement: 'aboveEditor' },
+    colors: { session: '#abcdef' },
+  }));
+  resetSettingsCache();
+
+  const mock = mockExec(t, { 'usage --provider claude --format json': CLAUDE_PAYLOAD });
+  const fakePi = createFakePi('claude');
+  const cache = tmpCacheDir();
+  t.after(async () => { await cache.cleanup(); });
+
+  createPiCodexbarExtension(fakePi.pi, { binaryPath: 'codexbar', cacheDir: cache.dir });
+  await fakePi.callCommand('codexbar-toggle', '');
+
+  const raw = JSON.parse(await readFile(userSettingsPath(), 'utf-8'));
+  assert.equal(raw.footer.enabled, false);
+  assert.equal(raw.footer.placement, 'aboveEditor');
+  assert.equal(raw.colors.session, '#abcdef');
 });
 
 test('codexbar-status renders colored widget', async (t) => {

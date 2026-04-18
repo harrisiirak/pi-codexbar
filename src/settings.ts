@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -8,6 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export interface FooterSettings {
   format: string;
   placement: 'belowEditor' | 'aboveEditor';
+  enabled: boolean;
 }
 
 export interface ColorSettings {
@@ -35,6 +36,7 @@ const DEFAULT_SETTINGS: CodexBarSettings = {
   footer: {
     format: '{provider} {plan} │ {session} │ {weekly}{monthly} │ {credits} │ ⏱ {session_reset}',
     placement: 'belowEditor',
+    enabled: true,
   },
   colors: {
     provider: '#d787af',
@@ -54,8 +56,12 @@ const DEFAULT_SETTINGS: CodexBarSettings = {
 };
 
 const EXT_DIR = 'pi-codexbar';
-const GLOBAL_SETTINGS = join(homedir(), '.pi', 'agent', 'extensions', EXT_DIR, 'settings.json');
+const globalSettings = () => join(homedir(), '.pi', 'agent', 'extensions', EXT_DIR, 'settings.json');
 const localSettings = () => join(process.cwd(), '.pi', 'extensions', EXT_DIR, 'settings.json');
+
+export function userSettingsPath(): string {
+  return globalSettings();
+}
 
 function loadJson(path: string): Record<string, unknown> {
   try {
@@ -67,12 +73,26 @@ function loadJson(path: string): Record<string, unknown> {
 
 let cachedSettings: CodexBarSettings | null = null;
 
+export function resetSettingsCache(): void {
+  cachedSettings = null;
+}
+
+export function updateUserFooterSetting<K extends keyof FooterSettings>(key: K, value: FooterSettings[K]): void {
+  const path = globalSettings();
+  const existing = loadJson(path);
+  const prevFooter = (existing.footer as Record<string, unknown> | undefined) ?? {};
+  const next = { ...existing, footer: { ...prevFooter, [key]: value } };
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
+  resetSettingsCache();
+}
+
 export function loadSettings(): CodexBarSettings {
   if (cachedSettings) {
     return cachedSettings;
   }
   const bundled = loadJson(join(__dirname, '..', 'settings.json'));
-  const global = loadJson(GLOBAL_SETTINGS);
+  const global = loadJson(globalSettings());
   const local = loadJson(localSettings());
   cachedSettings = {
     footer: { ...DEFAULT_SETTINGS.footer, ...(bundled.footer as object ?? {}), ...(global.footer as object ?? {}), ...(local.footer as object ?? {}) } as FooterSettings,

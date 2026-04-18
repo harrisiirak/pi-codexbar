@@ -1,8 +1,10 @@
 import { formatUsageFooter, renderWidget, refreshFooter } from './ui.ts';
-import { stripAnsi } from './settings.ts';
+import { stripAnsi, loadSettings, updateUserFooterSetting } from './settings.ts';
 import { mapProviderToCodexbar } from './mappings.ts';
 import { getProviderUsageState } from './usage.ts';
 import type { ExtensionAPI, ExtensionContext } from '@mariozechner/pi-coding-agent';
+
+const WIDGET_KEY = 'codexbar-usage';
 
 function getProviderFromCtx(ctx: ExtensionContext): string | undefined {
   const provider = ctx.model?.provider;
@@ -13,22 +15,48 @@ function getProviderFromCtx(ctx: ExtensionContext): string | undefined {
 }
 
 export default function createPiCodexbarExtension(pi: ExtensionAPI): void {
+  let enabled = loadSettings().footer.enabled !== false;
+
   pi.on('session_start', async (_event, ctx) => {
+    if (!enabled) return;
     const provider = getProviderFromCtx(ctx);
     refreshFooter(ctx, provider).catch(() => {});
   });
 
   pi.on('agent_end', async (_event, ctx) => {
+    if (!enabled) return;
     const provider = getProviderFromCtx(ctx);
     refreshFooter(ctx, provider).catch(() => {});
   });
 
   pi.on('model_select', async (event, ctx) => {
+    if (!enabled) return;
     const provider = event.model?.provider;
     if (typeof provider !== 'string' || !provider.trim()) {
       return;
     }
     refreshFooter(ctx, mapProviderToCodexbar(provider)).catch(() => {});
+  });
+
+  pi.registerCommand('codexbar-toggle', {
+    description: 'Toggle the CodexBar usage widget on/off (persists to user settings)',
+    handler: async (_args: string, ctx) => {
+      enabled = !enabled;
+      try {
+        updateUserFooterSetting('enabled', enabled);
+      } catch (err: unknown) {
+        ctx.ui.notify(`⚠️ Could not persist toggle state: ${(err as Error).message}`, 'warning');
+      }
+      if (enabled) {
+        ctx.ui.notify('CodexBar widget enabled', 'info');
+        const provider = getProviderFromCtx(ctx);
+        refreshFooter(ctx, provider).catch(() => {});
+        return;
+      }
+      const placement = loadSettings().footer.placement;
+      ctx.ui.setWidget(WIDGET_KEY, undefined, { placement });
+      ctx.ui.notify('CodexBar widget disabled', 'info');
+    },
   });
 
   pi.registerCommand('codexbar-status', {

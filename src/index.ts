@@ -1,8 +1,2 @@
-export { discoverBinary, runJson, run } from './codexbar.ts';
-export {
-  type ProviderId,
-  type Provider,
-  type ProviderState,
-  getProviderState,
-  setProvider,
-} from './provider-state.ts';
+export { default, default as createPiCodexbarExtension } from './extension.ts';
+export type { ExtensionContext } from '@mariozechner/pi-coding-agent';

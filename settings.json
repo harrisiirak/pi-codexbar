@@ -1,0 +1,21 @@
+{
+  "footer": {
+    "format": "{provider} {plan} │ {session} │ {weekly}{monthly} │ {credits} │ ⏱ {session_reset}",
+    "placement": "belowEditor"
+  },
+  "colors": {
+    "provider": "#d787af",
+    "plan": "#808080",
+    "session": "#5faf5f",
+    "sessionHigh": "#ff5f5f",
+    "weekly": "#00afaf",
+    "weeklyHigh": "#ff8700",
+    "monthly": "#af87d7",
+    "monthlyHigh": "#ff5f5f",
+    "reset": "#808080",
+    "separator": "#4e4e4e",
+    "credits": "#febc38",
+    "error": "#ff5f5f",
+    "highThreshold": 80
+  }
+}

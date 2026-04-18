@@ -1,5 +1,6 @@
 node_modules/
 .pi/
+.pi-cache/
 .DS_Store
 .env
 

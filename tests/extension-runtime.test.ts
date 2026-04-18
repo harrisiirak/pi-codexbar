@@ -141,7 +141,7 @@ test('codexbar-toggle persists enabled=false to user settings.json', async (t) =
   await fakePi.callCommand('codexbar-toggle', '');
 
   const raw = await readFile(userSettingsPath(), 'utf-8');
-  assert.deepEqual(JSON.parse(raw), { footer: { enabled: false } });
+  assert.deepEqual(JSON.parse(raw), { enabled: false });
 });
 
 test('persisted enabled=false stays off across extension reloads', async (t) => {
@@ -182,7 +182,7 @@ test('toggle merges into existing user settings without clobbering other keys', 
   await fakePi.callCommand('codexbar-toggle', '');
 
   const raw = JSON.parse(await readFile(userSettingsPath(), 'utf-8'));
-  assert.equal(raw.footer.enabled, false);
+  assert.equal(raw.enabled, false);
   assert.equal(raw.footer.placement, 'aboveEditor');
   assert.equal(raw.colors.session, '#abcdef');
 });

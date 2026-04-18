@@ -8,7 +8,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export interface FooterSettings {
   format: string;
   placement: 'belowEditor' | 'aboveEditor';
-  enabled: boolean;
 }
 
 export interface ColorSettings {
@@ -28,15 +27,16 @@ export interface ColorSettings {
 }
 
 export interface CodexBarSettings {
+  enabled: boolean;
   footer: FooterSettings;
   colors: ColorSettings;
 }
 
 const DEFAULT_SETTINGS: CodexBarSettings = {
+  enabled: true,
   footer: {
     format: '{provider} {plan} │ {session} │ {weekly}{monthly} │ {credits} │ ⏱ {session_reset}',
     placement: 'belowEditor',
-    enabled: true,
   },
   colors: {
     provider: '#d787af',
@@ -77,11 +77,10 @@ export function resetSettingsCache(): void {
   cachedSettings = null;
 }
 
-export function updateUserFooterSetting<K extends keyof FooterSettings>(key: K, value: FooterSettings[K]): void {
+export function updateSetting<K extends keyof CodexBarSettings>(key: K, value: CodexBarSettings[K]): void {
   const path = globalSettings();
   const existing = loadJson(path);
-  const prevFooter = (existing.footer as Record<string, unknown> | undefined) ?? {};
-  const next = { ...existing, footer: { ...prevFooter, [key]: value } };
+  const next = { ...existing, [key]: value };
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
   resetSettingsCache();
@@ -94,7 +93,10 @@ export function loadSettings(): CodexBarSettings {
   const bundled = loadJson(join(__dirname, '..', 'settings.json'));
   const global = loadJson(globalSettings());
   const local = loadJson(localSettings());
+  const pickEnabled = (src: Record<string, unknown>): boolean | undefined =>
+    typeof src.enabled === 'boolean' ? src.enabled : undefined;
   cachedSettings = {
+    enabled: pickEnabled(local) ?? pickEnabled(global) ?? pickEnabled(bundled) ?? DEFAULT_SETTINGS.enabled,
     footer: { ...DEFAULT_SETTINGS.footer, ...(bundled.footer as object ?? {}), ...(global.footer as object ?? {}), ...(local.footer as object ?? {}) } as FooterSettings,
     colors: { ...DEFAULT_SETTINGS.colors, ...(bundled.colors as object ?? {}), ...(global.colors as object ?? {}), ...(local.colors as object ?? {}) } as ColorSettings,
   };

@@ -54,7 +54,7 @@ If nothing is found the footer falls back to `codexbar: unavailable` and `/codex
 |---------|-------------|
 | `/codexbar-status` | Fetch and render usage for the current session's provider. |
 | `/codexbar-status <provider>` | Force a specific provider — accepts either a CodexBar id (`claude`, `codex`, `copilot`, `gemini`, `openrouter`) or a pi-native id (it's mapped automatically). |
-| `/codexbar-toggle` | Turn the footer widget on/off in real time. When off, the widget is cleared and `session_start` / `agent_end` / `model_select` no longer refresh it. State is persisted to user-scope `settings.json` under `footer.enabled` (project-scope override still applies as usual). |
+| `/codexbar-toggle` | Turn the footer widget on/off in real time. When off, the widget is cleared and `session_start` / `agent_end` / `model_select` no longer refresh it. State is persisted to user-scope `settings.json` under the root `enabled` flag (project-scope override still applies as usual). |
 
 The status command prints a notification with the formatted usage line **and** refreshes the footer widget.
 
@@ -125,9 +125,9 @@ Place a file at `<repo>/.pi/extensions/pi-codexbar/settings.json`. Use this when
 
 | Key                          | Type   | Default                                                              |
 |------------------------------|--------|----------------------------------------------------------------------|
+| `enabled`                    | bool   | `true` — toggled by `/codexbar-toggle`; persisted at user scope.     |
 | `footer.format`              | string | `{provider} {plan} │ {session} │ {weekly}{monthly} │ {credits} │ ⏱ {session_reset}` |
 | `footer.placement`           | enum   | `belowEditor` (also accepts `aboveEditor`)                           |
-| `footer.enabled`             | bool   | `true` — toggled by `/codexbar-toggle`; persisted at user scope.     |
 | `colors.provider`            | hex    | `#d787af`                                                            |
 | `colors.plan`                | hex    | `#808080`                                                            |
 | `colors.session` / `…High`   | hex    | `#5faf5f` / `#ff5f5f`                                                |

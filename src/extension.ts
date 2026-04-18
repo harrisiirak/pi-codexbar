@@ -1,5 +1,5 @@
 import { formatUsageFooter, renderWidget, refreshFooter } from './ui.ts';
-import { stripAnsi, loadSettings, updateUserFooterSetting } from './settings.ts';
+import { stripAnsi, loadSettings, updateSetting } from './settings.ts';
 import { mapProviderToCodexbar } from './mappings.ts';
 import { getProviderUsageState } from './usage.ts';
 import type { ExtensionAPI, ExtensionContext } from '@mariozechner/pi-coding-agent';
@@ -15,7 +15,7 @@ function getProviderFromCtx(ctx: ExtensionContext): string | undefined {
 }
 
 export default function createPiCodexbarExtension(pi: ExtensionAPI): void {
-  let enabled = loadSettings().footer.enabled !== false;
+  let enabled = loadSettings().enabled !== false;
 
   pi.on('session_start', async (_event, ctx) => {
     if (!enabled) return;
@@ -43,7 +43,7 @@ export default function createPiCodexbarExtension(pi: ExtensionAPI): void {
     handler: async (_args: string, ctx) => {
       enabled = !enabled;
       try {
-        updateUserFooterSetting('enabled', enabled);
+        updateSetting('enabled', enabled);
       } catch (err: unknown) {
         ctx.ui.notify(`⚠️ Could not persist toggle state: ${(err as Error).message}`, 'warning');
       }

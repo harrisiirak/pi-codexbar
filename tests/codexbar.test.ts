@@ -1,11 +1,13 @@
-import test from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { discoverBinary, cli } from '../src/codexbar.ts';
 
-test('discoverBinary is a function', () => {
-  assert.equal(typeof discoverBinary, 'function');
-});
+describe('codexbar', () => {
+  test('discoverBinary is a function', () => {
+    assert.equal(typeof discoverBinary, 'function');
+  });
 
-test('cli.exec is a function', () => {
-  assert.equal(typeof cli.exec, 'function');
+  test('cli.exec is a function', () => {
+    assert.equal(typeof cli.exec, 'function');
+  });
 });

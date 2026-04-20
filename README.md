@@ -1,6 +1,6 @@
 # pi-codexbar
 
-A [pi](https://github.com/badlogic/pi-mono) coding-agent extension that surfaces [CodexBar](https://github.com/steipete/CodexBar) provider usage — session, weekly and monthly quota windows, remaining credits, and plan/login info — directly inside the pi TUI. It renders a live footer widget below the input editor, exposes a `/codexbar-status` slash command, and refreshes automatically when the active provider/model changes.
+A [pi](https://github.com/badlogic/pi-mono) coding-agent extension that surfaces [CodexBar](https://github.com/steipete/CodexBar) provider usage — session, weekly and monthly quota windows, remaining credits, and plan/login info — directly inside the pi TUI. It renders a live footer widget below the input editor, exposes `/codexbar-status` and `/codexbar-switch` slash commands, and refreshes automatically when the active provider/model changes.
 
 It is intentionally a thin wrapper: all provider knowledge lives in the CodexBar CLI. This extension only maps pi's provider identifiers to CodexBar's, runs `codexbar usage …`, caches the JSON, and paints it.
 
@@ -12,6 +12,7 @@ This extension stitches the two together:
 
 - pi emits `session_start`, `agent_end`, `model_select` events → the extension asks CodexBar for the current provider's usage and rewrites the footer.
 - The user runs `/codexbar-status [provider]` → the extension fetches fresh state and renders it as both a widget and a notification.
+- The user runs `/codexbar-switch <query>` → the extension ranks matching models by remaining usage budget and switches to the best candidate.
 - Results are cached on disk with a short TTL so footer redraws don't hammer the CLI.
 
 ## Installation
@@ -54,9 +55,38 @@ If nothing is found the footer falls back to `codexbar: unavailable` and `/codex
 |---------|-------------|
 | `/codexbar-status` | Fetch and render usage for the current session's provider. |
 | `/codexbar-status <provider>` | Force a specific provider — accepts either a CodexBar id (`claude`, `codex`, `copilot`, `gemini`, `openrouter`) or a pi-native id (it's mapped automatically). |
+| `/codexbar-switch list [query]` | List candidate models for a query (shows resolve tier and matching models). |
+| `/codexbar-switch <query>` | Switch to the model with the highest remaining usage budget matching the query. Accepts a provider/id (e.g. `anthropic/claude-sonnet-4-20250514`), a provider name (e.g. `openai`), a built-in key (e.g. `cheap`, `vision`, `reasoning`, `long-context`), or a user-defined alias. |
+| `/codexbar-switch <query> --dry-run` | Preview the ranked candidates without actually switching. Shows each model’s remaining budget percentage. |
+| `/codexbar-switch <query> --exclude=<provider>` | Exclude one or more providers from consideration. Repeat the flag to exclude multiple: `--exclude=openai --exclude=anthropic`. |
 | `/codexbar-toggle` | Turn the footer widget on/off in real time. When off, the widget is cleared and `session_start` / `agent_end` / `model_select` no longer refresh it. State is persisted to user-scope `settings.json` under the root `enabled` flag (project-scope override still applies as usual). |
 
 The status command prints a notification with the formatted usage line **and** refreshes the footer widget.
+
+### /codexbar-switch
+
+The switch command resolves a query against the model registry, user aliases, and built-in classifications, then ranks matching models by remaining CodexBar usage budget. It can also be invoked as a tool (`codexbar_switch_model`) from within an agent session.
+
+**Built-in classifications:**
+
+| Key | Selects |
+|-----|---------|
+| `cheap` | Top 5 models by ascending total cost (input + output per 1M tokens) |
+| `vision` | Models that accept image input |
+| `reasoning` | Models with reasoning enabled |
+| `long-context` | Models with context window ≥ 200K tokens |
+
+**Notification conventions:**
+
+| Notification | Meaning |
+|-------------|---------|
+| `⏳` | Resolving candidates… |
+| `📊` | Preview / list / dry-run result |
+| `✅` | Successfully switched |
+| `⚠️` | Validation error (bad flags, unknown query) |
+| `❌` | Runtime error (usage unavailable, switch failed) |
+
+User-defined aliases can be placed in `~/.pi/agent/extensions/pi-codexbar/aliases.json` or `~/.pi/agent/extensions/model-switch/aliases.json`. Each key maps to a model string (`provider/id`) or an array of model strings. The extension merges both files, with `pi-codexbar` taking precedence on collisions.
 
 ## Footer Widget
 

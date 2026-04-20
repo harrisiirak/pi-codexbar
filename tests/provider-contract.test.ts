@@ -1,47 +1,48 @@
-import test from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { isKnownProvider, classifyError } from '../src/usage.ts';
 
-test('isKnownProvider returns false for unknown', () => {
-  assert.equal(isKnownProvider('unknown'), false);
+describe('isKnownProvider', () => {
+  test('returns false for "unknown"', () => {
+    assert.equal(isKnownProvider('unknown'), false);
+  });
+
+  test('returns false for empty string', () => {
+    assert.equal(isKnownProvider(''), false);
+  });
+
+  test('returns false for whitespace', () => {
+    assert.equal(isKnownProvider('   '), false);
+  });
+
+  test('returns false for undefined', () => {
+    assert.equal(isKnownProvider(undefined), false);
+  });
+
+  test('returns true for mapped providers', () => {
+    assert.equal(isKnownProvider('claude'), true);
+    assert.equal(isKnownProvider('anthropic'), true);
+  });
+
+  test('returns true for provider mapping values', () => {
+    assert.equal(isKnownProvider('claude'), true);
+  });
 });
 
-test('isKnownProvider returns false for empty string', () => {
-  assert.equal(isKnownProvider(''), false);
-});
+describe('classifyError', () => {
+  test('auth error', () => {
+    assert.equal(classifyError('Authentication required'), 'auth');
+  });
 
-test('isKnownProvider returns false for whitespace', () => {
-  assert.equal(isKnownProvider('   '), false);
-});
+  test('session error', () => {
+    assert.equal(classifyError('Session expired'), 'session');
+  });
 
-test('isKnownProvider returns false for undefined', () => {
-  assert.equal(isKnownProvider(undefined), false);
-});
+  test('provider error', () => {
+    assert.equal(classifyError('Provider not found'), 'provider');
+  });
 
-test('isKnownProvider returns true for mapped providers', () => {
-  // 'claude' and 'anthropic' are in the default provider-mappings.json
-  assert.equal(isKnownProvider('claude'), true);
-  assert.equal(isKnownProvider('anthropic'), true);
-});
-
-test('isKnownProvider returns true for provider mapping values', () => {
-  // The mapping value for 'claude' in default mappings is also 'claude'
-  // so this should be true
-  assert.equal(isKnownProvider('claude'), true);
-});
-
-test('classifyError: auth error', () => {
-  assert.equal(classifyError('Authentication required'), 'auth');
-});
-
-test('classifyError: session error', () => {
-  assert.equal(classifyError('Session expired'), 'session');
-});
-
-test('classifyError: provider error', () => {
-  assert.equal(classifyError('Provider not found'), 'provider');
-});
-
-test('classifyError: unknown error', () => {
-  assert.equal(classifyError('Something went wrong'), 'unknown');
+  test('unknown error', () => {
+    assert.equal(classifyError('Something went wrong'), 'unknown');
+  });
 });

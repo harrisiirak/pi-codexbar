@@ -110,6 +110,142 @@ The same functionality is exposed as a tool so an agent can switch itself mid-se
 
 Returns a single text content block. On success: `✅ Switched to <provider>/<id>` (for `switch`), or the formatted candidate table (for `list` / `dryRun`). On failure: `❌ <reason>`. The tool never throws — errors are always returned as text so the agent can react.
 
+#### Usage examples
+
+All examples assume pi is running and the CodexBar CLI is on `$PATH`. Slash commands and tool calls are interchangeable — the tool is what the agent calls autonomously, the slash command is what you type.
+
+**1. Switch to any Claude model with the most remaining budget**
+
+```
+/codexbar-switch anthropic
+```
+
+Resolves via the `registry` tier (provider name), ranks the matching Anthropic models by remaining session/weekly/monthly window, activates the winner.
+
+**2. Pick the cheapest model right now (by cost × budget)**
+
+```
+/codexbar-switch cheap
+```
+
+`cheap` is a built-in that shortlists the five cheapest models by total token cost, then ranks them by remaining budget so you get the cheapest model that still has headroom.
+
+**3. Switch by token subsequence (partial model id)**
+
+```
+/codexbar-switch opus-4-7
+```
+
+Matches `anthropic/claude-opus-4-7-20251022` (and any other id where the tokens `opus`, `4`, `7` appear in order). Useful when you can't remember the exact date stamp.
+
+**4. Switch by exact `provider/id`**
+
+```
+/codexbar-switch anthropic/claude-sonnet-4-20250514
+```
+
+Top-priority `exact` tier — never ambiguous, skips ranking (only one candidate).
+
+**5. Preview without switching**
+
+```
+/codexbar-switch reasoning --dry-run
+```
+
+Ranks the `reasoning` built-in's candidates and prints the budget breakdown, but leaves the active model unchanged. Good for "what would happen if I switched right now?".
+
+**6. Exclude providers**
+
+```
+/codexbar-switch coding --exclude=openai --exclude=anthropic
+```
+
+Resolves the `coding` alias, drops any OpenAI/Anthropic candidates, ranks the rest. Repeat `--exclude` to stack, or use `--exclude=openai,anthropic` with a comma.
+
+**7. List candidates without ranking**
+
+```
+/codexbar-switch list vision
+```
+
+Shows the tier that matched and the list of candidate `provider/id`s for the `vision` built-in. No CodexBar calls, no budget fetch — pure resolution preview.
+
+**8. Agent tool call: inspect before switching**
+
+```json
+{
+  "name": "codexbar_switch_model",
+  "input": { "action": "list", "query": "opus" }
+}
+```
+
+Returns a text block with the resolved candidates so the agent can reason about which to pick.
+
+**9. Agent tool call: budget-aware switch with exclusions**
+
+```json
+{
+  "name": "codexbar_switch_model",
+  "input": {
+    "action": "switch",
+    "query": "cheap",
+    "excludeProviders": ["openai"],
+    "dryRun": false
+  }
+}
+```
+
+Picks the cheapest non-OpenAI model that still has budget and activates it.
+
+#### `aliases.json`
+
+User aliases let you define your own keys for `/codexbar-switch <key>`. Each value is either a single `provider/id` string or an array of them (first-match wins inside an array, but pi-codexbar ranks the whole array by remaining budget before picking).
+
+**File locations and precedence:**
+
+1. `~/.pi/agent/extensions/pi-codexbar/aliases.json` (pi-codexbar-specific)
+2. `~/.pi/agent/extensions/model-switch/aliases.json` (shared with the [pi-model-switch](#interop-with-pi-model-switch) extension)
+
+Both files are loaded and merged; pi-codexbar's file wins on key collisions.
+
+**Example `aliases.json`:**
+
+```json
+{
+  "default": "openai/gpt-5.4",
+  "coding": [
+    "openai/gpt-5.4",
+    "anthropic/claude-sonnet-4-20250514",
+    "github-copilot/claude-sonnet-4.6"
+  ],
+  "reasoning": [
+    "anthropic/claude-opus-4-7-20251022",
+    "openai/gpt-5.4"
+  ],
+  "sonnet": [
+    "anthropic/claude-sonnet-4-20250514",
+    "github-copilot/claude-sonnet-4.6"
+  ],
+  "cheap-local": [
+    "ollama/llama-3.3-70b",
+    "ollama/qwen2.5-coder-32b"
+  ]
+}
+```
+
+With that file in place, `/codexbar-switch coding` evaluates all three coding models, fetches their CodexBar usage, and activates whichever has the most budget left. `/codexbar-switch sonnet` does the same for the two Sonnet routes — handy when you want the Sonnet quality tier and don't care which backend serves it.
+
+#### Interop with pi-model-switch
+
+pi-codexbar intentionally reads `~/.pi/agent/extensions/model-switch/aliases.json` so aliases you've already defined for the [pi-model-switch](https://github.com/badlogic/pi-mono) extension (slash command + tool for direct model switching) are available in pi-codexbar for free. You don't need to duplicate them.
+
+Suggested arrangement:
+
+- Put shared aliases (`coding`, `sonnet`, `cheap`, …) in `model-switch/aliases.json` — both extensions see them.
+- Put pi-codexbar-only overrides in `pi-codexbar/aliases.json` — e.g. a `budget` alias that only includes providers with CodexBar support.
+- Use pi-model-switch when you want a direct, deterministic switch to a known model.
+- Use pi-codexbar (`/codexbar-switch`) when you want the same alias resolved to whichever candidate has the most remaining budget right now.
+
 ## Footer Widget
 
 On every `session_start`, `agent_end`, and `model_select`, the extension resolves the active model's provider, maps it to a CodexBar id, and repaints a widget called `codexbar-usage` above or below the input editor.

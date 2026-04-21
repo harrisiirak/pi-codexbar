@@ -18,6 +18,7 @@
   },
   "keywords": [
     "pi-extension",
+    "pi-package",
     "codexbar",
     "cli"
   ],
@@ -29,7 +30,7 @@
   "bugs": {
     "url": "https://github.com/harrisiirak/pi-codexbar/issues"
   },
-  "author": "",
+  "author": "Harri Siirak <harri@siirak.ee>",
   "license": "MIT",
   "engines": {
     "node": ">=24 <25"
@@ -45,5 +46,10 @@
     "@types/node": "^25.6.0",
     "commit-and-tag-version": "^12.7.1",
     "tsx": "^4.21.0"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
   }
 }

@@ -67,6 +67,15 @@ The status command prints a notification with the formatted usage line **and** r
 
 The switch command resolves a query against the model registry, user aliases, and built-in classifications, then ranks matching models by remaining CodexBar usage budget. It can also be invoked as a tool (`codexbar_switch_model`) from within an agent session.
 
+**Query resolution tiers** (first non-empty tier wins):
+
+| Tier | Match |
+|------|-------|
+| `exact` | `provider/id` literal, e.g. `anthropic/claude-sonnet-4-20250514`. |
+| `registry` | Token-subsequence match against model ids in pi's registry — `opus-4-7` matches `claude-opus-4-7-20251022`, `gemini-3.1` matches `gemini-3.1-pro`. |
+| `alias` | User-defined key in `aliases.json` (see below). |
+| `builtin` | One of the built-in classifications listed below. |
+
 **Built-in classifications:**
 
 | Key | Selects |
@@ -87,6 +96,19 @@ The switch command resolves a query against the model registry, user aliases, an
 | `❌` | Runtime error (usage unavailable, switch failed) |
 
 User-defined aliases can be placed in `~/.pi/agent/extensions/pi-codexbar/aliases.json` or `~/.pi/agent/extensions/model-switch/aliases.json`. Each key maps to a model string (`provider/id`) or an array of model strings. The extension merges both files, with `pi-codexbar` taking precedence on collisions.
+
+#### `codexbar_switch_model` tool
+
+The same functionality is exposed as a tool so an agent can switch itself mid-session. Parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | `'switch'` \| `'list'` | yes | `switch` picks the best-ranked model and activates it; `list` returns resolved candidates without changing state. |
+| `query` | `string` | optional | Model selector — see *Query resolution tiers* above. Empty reuses the current provider's models. |
+| `excludeProviders` | `string[]` | optional | Pi-native provider ids to exclude from ranking (e.g. `['openai', 'anthropic']`). |
+| `dryRun` | `boolean` | optional | With `action: 'switch'`, return the ranked budget breakdown without activating any model. |
+
+Returns a single text content block. On success: `✅ Switched to <provider>/<id>` (for `switch`), or the formatted candidate table (for `list` / `dryRun`). On failure: `❌ <reason>`. The tool never throws — errors are always returned as text so the agent can react.
 
 ## Footer Widget
 

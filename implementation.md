@@ -1,1 +1,0 @@
-Now update extension-runtime.test.ts — it should import the updated `formatUsageFooter` from `provider-ux` (now returning colored output), `stripAnsi` from `settings`, and the moved functions:

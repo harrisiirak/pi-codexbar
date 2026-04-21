@@ -11,7 +11,7 @@ const SEARCH_PATHS = [
   '/opt/homebrew/bin/codexbar',
 ];
 
-export function discoverBinary(): string {
+function discoverBinaryImpl(): string {
   for (const candidate of SEARCH_PATHS) {
     if (existsSync(candidate)) {
       return candidate;
@@ -55,4 +55,5 @@ async function execImpl<T = void>(binaryPath: string, args: string[], options?: 
 
 export const cli = {
   exec: execImpl,
+  discoverBinary: discoverBinaryImpl,
 };

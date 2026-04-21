@@ -1,4 +1,4 @@
-import { cli, discoverBinary } from './codexbar.ts';
+import { cli } from './codexbar.ts';
 import { readFile, writeFile, unlink, mkdir, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
@@ -210,7 +210,7 @@ export async function getProviderUsageState(provider: string): Promise<UsageStat
     return cached;
   }
 
-  const bin = discoverBinary();
+  const bin = cli.discoverBinary();
   const args = selectUsageCommand(provider);
   const raw = await cli.exec<RawUsageResponse>(bin, [...args], { json: true });
   const rawProviders = extractProviderRecords(raw);

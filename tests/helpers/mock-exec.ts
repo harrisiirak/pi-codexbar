@@ -10,6 +10,8 @@ export interface MockCall {
 export function mockExec(t: TestContext, responses: Record<string, unknown>) {
   const calls: MockCall[] = [];
 
+  t.mock.method(cli, 'discoverBinary', () => '/mock/codexbar');
+
   t.mock.method(cli, 'exec', async (_binaryPath: string, args: string[], options?: ExecOptions) => {
     const key = args.join(' ');
     calls.push({ args: [...args], options });

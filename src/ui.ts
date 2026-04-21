@@ -106,15 +106,22 @@ export function formatUsageFooter(state: UsageState): string {
   return applyFormat(footerSettings.format, buildColoredTokens(entry, colorSettings), color(colorSettings.separator, '│'));
 }
 
+export const WIDGET_KEY = 'codexbar-usage';
+
 export function renderWidget(ctx: ExtensionContext, state: UsageState): void {
   const settings = loadSettings();
   const placement = settings.footer.placement ?? 'belowEditor';
-  ctx.ui.setWidget('codexbar-usage', [` ${formatUsageFooter(state)}`], { placement });
+  ctx.ui.setWidget(WIDGET_KEY, [` ${formatUsageFooter(state)}`], { placement });
 }
 
 export function renderWidgetError(ctx: ExtensionContext): void {
   const placement = loadSettings().footer.placement ?? 'belowEditor';
-  ctx.ui.setWidget('codexbar-usage', [' codexbar: unavailable'], { placement });
+  ctx.ui.setWidget(WIDGET_KEY, [' codexbar: unavailable'], { placement });
+}
+
+export function hideFooter(ctx: ExtensionContext): void {
+  const placement = loadSettings().footer.placement ?? 'belowEditor';
+  ctx.ui.setWidget(WIDGET_KEY, undefined, { placement });
 }
 
 export async function refreshFooter(ctx: ExtensionContext, provider: string | undefined): Promise<UsageState | null> {

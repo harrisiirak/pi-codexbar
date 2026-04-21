@@ -1,5 +1,5 @@
 import { Type } from '@sinclair/typebox';
-import { formatUsageFooter, renderWidget, refreshFooter } from './ui.ts';
+import { formatUsageFooter, renderWidget, refreshFooter, hideFooter } from './ui.ts';
 import { stripAnsi, loadSettings, updateSetting } from './settings.ts';
 import { mapProviderToCodexbar } from './mappings.ts';
 import { getProviderUsageState, invalidateUsageCache } from './usage.ts';
@@ -15,8 +15,6 @@ import type {
 } from '@mariozechner/pi-coding-agent';
 
 type ModelSelectEvent = Extract<ExtensionEvent, { type: 'model_select' }>;
-
-const WIDGET_KEY = 'codexbar-usage';
 
 function getProviderFromCtx(ctx: ExtensionContext): string | undefined {
   const provider = ctx.model?.provider;
@@ -184,8 +182,7 @@ export async function handleToggleCommand(args: string, ctx: ExtensionContext): 
     }
     return;
   }
-  const placement = loadSettings().footer.placement;
-  ctx.ui.setWidget(WIDGET_KEY, undefined, { placement });
+  hideFooter(ctx);
   ctx.ui.notify('CodexBar widget disabled', 'info');
 }
 

@@ -1,0 +1,10 @@
+# Changelog
+
+All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
+
+## [1.0.2](https://github.com/harrisiirak/pi-codexbar/compare/v1.0.1...v1.0.2) (2026-04-21)
+
+
+### Features
+
+* **package:** register as pi extension and add author metadata ([892772d](https://github.com/harrisiirak/pi-codexbar/commit/892772dfd1fd9707897c4cc28ffa22b88e802db9))

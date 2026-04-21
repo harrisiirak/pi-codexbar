@@ -1,6 +1,6 @@
 {
   "footer": {
-    "format": "{provider} {plan} │ {session} │ {weekly}{monthly} │ {credits} │ ⏱ {session_reset}",
+    "format": "{provider} {plan} │ {session} │ {weekly} | {monthly} │ {credits} │ ⏱ {session_reset}",
     "placement": "belowEditor"
   },
   "colors": {

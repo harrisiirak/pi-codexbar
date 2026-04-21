@@ -13,6 +13,7 @@ This extension stitches the two together:
 - pi emits `session_start`, `agent_end`, `model_select` events → the extension asks CodexBar for the current provider's usage and rewrites the footer.
 - The user runs `/codexbar-status [provider]` → the extension fetches fresh state and renders it as both a widget and a notification.
 - The user runs `/codexbar-switch <query>` → the extension ranks matching models by remaining usage budget and switches to the best candidate.
+- Built-in keys and user aliases are registered as virtual models under the `codexbar` provider. Selecting one from the Pi model picker resolves it to the best-ranked real model automatically.
 - Results are cached on disk with a short TTL so footer redraws don't hammer the CLI.
 
 ## Installation
@@ -57,6 +58,7 @@ If nothing is found the footer falls back to `codexbar: unavailable` and `/codex
 | `/codexbar-status <provider>` | Force a specific provider — accepts either a CodexBar id (`claude`, `codex`, `copilot`, `gemini`, `openrouter`) or a pi-native id (it's mapped automatically). |
 | `/codexbar-switch list [query]` | List candidate models for a query (shows resolve tier and matching models). |
 | `/codexbar-switch <query>` | Switch to the model with the highest remaining usage budget matching the query. Accepts a provider/id (e.g. `anthropic/claude-sonnet-4-20250514`), a provider name (e.g. `openai`), a built-in key (e.g. `cheap`, `vision`, `reasoning`, `long-context`), or a user-defined alias. |
+| **Model picker** | Built-in keys and user aliases also appear as `codexbar/cheap`, `codexbar/vision`, etc. in the Pi model picker. Selecting one resolves it to the best-ranked real model — no slash command needed. |
 | `/codexbar-switch <query> --dry-run` | Preview the ranked candidates without actually switching. Shows each model’s remaining budget percentage. |
 | `/codexbar-switch <query> --exclude=<provider>` | Exclude one or more providers from consideration. Repeat the flag to exclude multiple: `--exclude=openai --exclude=anthropic`. |
 | `/codexbar-toggle` | Turn the footer widget on/off in real time. When off, the widget is cleared and `session_start` / `agent_end` / `model_select` no longer refresh it. State is persisted to user-scope `settings.json` under the root `enabled` flag (project-scope override still applies as usual). |
@@ -96,6 +98,21 @@ The switch command resolves a query against the model registry, user aliases, an
 | `❌` | Runtime error (usage unavailable, switch failed) |
 
 User-defined aliases can be placed in `~/.pi/agent/extensions/pi-codexbar/aliases.json` or `~/.pi/agent/extensions/model-switch/aliases.json`. Each key maps to a model string (`provider/id`) or an array of model strings. The extension merges both files, with `pi-codexbar` taking precedence on collisions.
+
+#### Model picker aliases
+
+Built-in keys (`cheap`, `vision`, `reasoning`, `long-context`) and all user-defined aliases are registered as virtual models under the `codexbar` provider. They show up in the Pi model picker and can be selected like any other model.
+
+When you pick e.g. `codexbar/cheap`:
+
+1. `model_select` fires with `{ provider: 'codexbar', id: 'cheap' }`.
+2. The extension calls `runSwitch({ action: 'switch', query: 'cheap', excludeProviders: ['codexbar'] })` against the full model registry.
+3. The winner (best-ranked real model) is activated via `pi.setModel()`.
+4. A notification confirms the switch: `✅ cheap → anthropic/claude-haiku-4-5`.
+
+The virtual model is never used to stream requests — it's a one-click shortcut that always resolves to a real provider.
+
+> **Note:** The virtual `codexbar` provider has placeholder request config (no real API endpoint). If alias resolution fails, the extension notifies you with the specific reason and leaves the virtual entry active so you can pick another.
 
 #### `codexbar_switch_model` tool
 
@@ -385,11 +402,20 @@ Provider usage is cached under `~/.pi/agent/extensions/pi-codexbar/.cache/usage-
 
 | Pi event | Behavior |
 |----------|----------|
-| `session_start` | Detect provider from `ctx.model.provider`, fetch usage, render widget. |
+| `session_start` | Detect provider from `ctx.model.provider`, fetch usage, render widget. Also re-registers the virtual `codexbar` provider so alias edits pick up new entries. |
 | `agent_end` | Refresh the widget after every agent turn. |
-| `model_select` | Re-fetch when the user switches provider/model. |
+| `model_select` | When the selection targets `codexbar/<alias>`, resolve the alias through `runSwitch` and activate the winner. Otherwise re-fetch usage for the new provider's footer. |
 
 All three handlers swallow errors internally — a failed CodexBar call never blocks the event loop or interrupts pi.
+
+### Alias resolution notifications
+
+| Notification | Meaning |
+|-------------|---------|
+| `✅ <alias> → <provider>/<id>` | Alias resolved; winner activated. |
+| `⚠️ No candidates matched "<alias>".` | Alias resolution produced zero candidates. |
+| `⚠️ Alias resolution did not return a switch candidate.` | Resolver returned `list`/`preview` instead of `switch`. |
+| `❌ Failed to switch to <provider>/<id> — API key may not be configured.` | `pi.setModel()` returned `false` (missing auth for the resolved model). |
 
 ## Development
 

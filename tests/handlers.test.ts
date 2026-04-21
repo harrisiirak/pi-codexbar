@@ -16,6 +16,7 @@ import type {
 import type { Model, TextContent } from '@mariozechner/pi-ai';
 import type { CodexBarSettings } from '../src/settings.ts';
 import type { UsageState } from '../src/usage.ts';
+import type { SwitchOutcome, SwitchRequest } from '../src/switch.ts';
 
 type MockFn<F extends (...args: any[]) => any> = ReturnType<typeof mock.fn<F>>;
 type NotifyFn = ExtensionUIContext['notify'];
@@ -34,6 +35,7 @@ interface LoadOptions {
   settings?: Partial<CodexBarSettings>;
   usage?: Record<string, UsageState | Error>;
   exec?: Record<string, unknown>;
+  switch?: { runSwitch?: (...args: any[]) => Promise<SwitchOutcome> };
 }
 
 interface LoadResult {
@@ -64,7 +66,12 @@ async function loadExtension(t: TestContext, opts: LoadOptions = {}): Promise<Lo
     mockExec(t, opts.exec);
   }
   await reloadModule(t, '../src/ui.ts');
-  await reloadModule(t, '../src/switch.ts');
+  if (opts.switch?.runSwitch !== undefined) {
+    const switchMod = await import(`../src/switch.ts?bust=${Math.random()}`);
+    t.mock.module('../src/switch.ts', { namedExports: { ...switchMod, runSwitch: opts.switch.runSwitch } });
+  } else {
+    await reloadModule(t, '../src/switch.ts');
+  }
   result.ext = (await import(`../src/extension.ts?bust=${Math.random()}`)) as ExtModule;
   return result as LoadResult;
 }
@@ -174,6 +181,187 @@ describe('handleModelSelect', () => {
     const { setWidget, ctx } = makeCtx(t);
     await ext.handleModelSelect(modelSelectEvent(undefined), ctx);
     assert.equal(setWidget.mock.callCount(), 0);
+  });
+});
+
+describe('createCodexbarAliasSelectHandler', () => {
+  test('ignores non-codexbar selection', async (t) => {
+    const runSwitchMock = t.mock.fn(async () => ({ kind: 'switch', winner: TEST_MODELS[0], ordered: [] } as SwitchOutcome));
+    const { ext } = await loadExtension(t, { switch: { runSwitch: runSwitchMock } });
+    const setModel = t.mock.fn(async () => true);
+    const handler = ext.createCodexbarAliasSelectHandler(makePi(setModel));
+    const { notify, ctx } = makeCtx(t);
+    await handler(modelSelectEvent('anthropic'), ctx);
+    assert.equal(runSwitchMock.mock.callCount(), 0);
+    assert.equal(setModel.mock.callCount(), 0);
+    assert.equal(notify.mock.callCount(), 0);
+  });
+
+  test('successful alias switch calls setModel and notifies', async (t) => {
+    const winner = TEST_MODELS[0];
+    const runSwitchMock = t.mock.fn(async () => ({ kind: 'switch', winner, ordered: [] } as SwitchOutcome));
+    const { ext } = await loadExtension(t, { switch: { runSwitch: runSwitchMock } });
+    const setModel = t.mock.fn(async () => true);
+    const handler = ext.createCodexbarAliasSelectHandler(makePi(setModel));
+    const { notify, ctx } = makeCtx(t);
+    const event: ModelSelectEvent = {
+      type: 'model_select',
+      model: { provider: 'codexbar', id: 'cheap' } as unknown as Model<any>,
+      previousModel: undefined,
+      source: 'set',
+    };
+    await handler(event, ctx);
+    assert.equal(runSwitchMock.mock.callCount(), 1);
+    const firstRunSwitchCall = runSwitchMock.mock.calls[0];
+    const [switchRequestArg, availableModelsArg] = firstRunSwitchCall!.arguments as unknown[];
+    const switchRequest = switchRequestArg as SwitchRequest;
+    assert.equal(switchRequest.action, 'switch');
+    assert.equal(switchRequest.query, 'cheap');
+    assert.deepEqual(switchRequest.excludeProviders, ['codexbar']);
+    assert.equal(switchRequest.dryRun, false);
+
+    assert.deepEqual(availableModelsArg, ctx.modelRegistry.getAvailable());
+    assert.equal(setModel.mock.callCount(), 1);
+    const firstSetModelCall = setModel.mock.calls[0];
+
+    const [selectedWinnerArg] = firstSetModelCall!.arguments as unknown[];
+    assert.equal(selectedWinnerArg, winner);
+    assert.ok(notify.mock.calls.some((c: any) => c.arguments[0] === '✅ cheap → openai/gpt-4o' && c.arguments[1] === 'info'));
+  });
+
+  test('excludes codexbar provider to prevent virtual model self-selection', async (t) => {
+    const runSwitchMock = t.mock.fn(async () => ({ kind: 'switch', winner: TEST_MODELS[0], ordered: [] } as SwitchOutcome));
+    const { ext } = await loadExtension(t, { switch: { runSwitch: runSwitchMock } });
+    const setModel = t.mock.fn(async () => true);
+    const handler = ext.createCodexbarAliasSelectHandler(makePi(setModel));
+    const { ctx } = makeCtx(t);
+    const event: ModelSelectEvent = {
+      type: 'model_select',
+      model: { provider: 'codexbar', id: 'cheap' } as unknown as Model<any>,
+      previousModel: undefined,
+      source: 'set',
+    };
+    await handler(event, ctx);
+    assert.equal(runSwitchMock.mock.callCount(), 1);
+    const firstRunSwitchCall = runSwitchMock.mock.calls[0];
+    const [reqArg] = firstRunSwitchCall!.arguments as unknown[];
+    const req = reqArg as SwitchRequest;
+    assert.deepEqual(req.excludeProviders, ['codexbar']);
+  });
+
+  test('warns when runSwitch returns error and does not call setModel', async (t) => {
+    const runSwitchMock = t.mock.fn(async () => ({ kind: 'error', message: 'No candidates matched "cheap".' } as SwitchOutcome));
+    const { ext } = await loadExtension(t, { switch: { runSwitch: runSwitchMock } });
+    const setModel = t.mock.fn(async () => true);
+    const handler = ext.createCodexbarAliasSelectHandler(makePi(setModel));
+    const { notify, ctx } = makeCtx(t);
+    const event: ModelSelectEvent = {
+      type: 'model_select',
+      model: { provider: 'codexbar', id: 'cheap' } as unknown as Model<any>,
+      previousModel: undefined,
+      source: 'set',
+    };
+    await handler(event, ctx);
+    assert.equal(runSwitchMock.mock.callCount(), 1);
+    assert.equal(setModel.mock.callCount(), 0);
+    assert.ok(notify.mock.calls.some((c: any) => c.arguments[0] === '⚠️ No candidates matched "cheap".' && c.arguments[1] === 'warning'));
+  });
+
+  test('notifies error when setModel returns false', async (t) => {
+    const winner = TEST_MODELS[0];
+    const runSwitchMock = t.mock.fn(async () => ({ kind: 'switch', winner, ordered: [] } as SwitchOutcome));
+    const { ext } = await loadExtension(t, { switch: { runSwitch: runSwitchMock } });
+    const setModel = t.mock.fn(async () => false);
+    const handler = ext.createCodexbarAliasSelectHandler(makePi(setModel));
+    const { notify, ctx } = makeCtx(t);
+    const event: ModelSelectEvent = {
+      type: 'model_select',
+      model: { provider: 'codexbar', id: 'cheap' } as unknown as Model<any>,
+      previousModel: undefined,
+      source: 'set',
+    };
+    await handler(event, ctx);
+    assert.equal(runSwitchMock.mock.callCount(), 1);
+    assert.equal(setModel.mock.callCount(), 1);
+    assert.ok(notify.mock.calls.some((c: any) => c.arguments[0] === '❌ Failed to switch to openai/gpt-4o — API key may not be configured.' && c.arguments[1] === 'error'));
+  });
+
+  test('warns when runSwitch returns non-switch and does not call setModel', async (t) => {
+    const runSwitchMock = t.mock.fn(async () => ({ kind: 'list', models: [] } as unknown as SwitchOutcome));
+    const { ext } = await loadExtension(t, { switch: { runSwitch: runSwitchMock } });
+    const setModel = t.mock.fn(async () => true);
+    const handler = ext.createCodexbarAliasSelectHandler(makePi(setModel));
+    const { notify, ctx } = makeCtx(t);
+    const event: ModelSelectEvent = {
+      type: 'model_select',
+      model: { provider: 'codexbar', id: 'cheap' } as unknown as Model<any>,
+      previousModel: undefined,
+      source: 'set',
+    };
+    await handler(event, ctx);
+    assert.equal(runSwitchMock.mock.callCount(), 1);
+    assert.equal(setModel.mock.callCount(), 0);
+    assert.ok(notify.mock.calls.some((c: any) => c.arguments[0] === '⚠️ Alias resolution did not return a switch candidate.' && c.arguments[1] === 'warning'));
+  });
+
+  test('suppresses recursive re-entry when setModel triggers handler again', async (t) => {
+    const winner = TEST_MODELS[0];
+    const runSwitchMock = t.mock.fn(async () => ({ kind: 'switch', winner, ordered: [] } as SwitchOutcome));
+    const { ext } = await loadExtension(t, { switch: { runSwitch: runSwitchMock } });
+    const event: ModelSelectEvent = {
+      type: 'model_select',
+      model: { provider: 'codexbar', id: 'cheap' } as unknown as Model<any>,
+      previousModel: undefined,
+      source: 'set',
+    };
+    let recursionDepth = 0;
+    let handler: any;
+    const setModel = t.mock.fn(async () => {
+      recursionDepth++;
+      if (recursionDepth === 1) {
+        await handler(event, ctx);
+      }
+      return true;
+    });
+    handler = ext.createCodexbarAliasSelectHandler(makePi(setModel));
+    const { ctx } = makeCtx(t);
+    await handler(event, ctx);
+    assert.equal(runSwitchMock.mock.callCount(), 1, 'runSwitch should execute exactly once');
+    assert.equal(setModel.mock.callCount(), 1, 'setModel should execute exactly once');
+  });
+});
+
+describe('createModelSelectHandler', () => {
+  test('composes alias handler and footer refresh for non-codexbar', async (t) => {
+    const runSwitchMock = t.mock.fn(async () => ({ kind: 'switch', winner: TEST_MODELS[0], ordered: [] } as SwitchOutcome));
+    const { ext } = await loadExtension(t, { settings: { enabled: true }, usage: { claude: CLAUDE_USAGE_STATE }, switch: { runSwitch: runSwitchMock } });
+    const setModel = t.mock.fn(async () => true);
+    const handler = ext.createModelSelectHandler(makePi(setModel));
+    const { setWidget, ctx } = makeCtx(t);
+    await handler(modelSelectEvent('anthropic'), ctx);
+    assert.equal(runSwitchMock.mock.callCount(), 0);
+    assert.equal(setModel.mock.callCount(), 0);
+    assert.equal(setWidget.mock.callCount(), 1);
+  });
+
+  test('composes alias handler and footer refresh for codexbar alias', async (t) => {
+    const winner = TEST_MODELS[0];
+    const runSwitchMock = t.mock.fn(async () => ({ kind: 'switch', winner, ordered: [] } as SwitchOutcome));
+    const { ext } = await loadExtension(t, { settings: { enabled: true }, usage: { claude: CLAUDE_USAGE_STATE }, switch: { runSwitch: runSwitchMock } });
+    const setModel = t.mock.fn(async () => true);
+    const handler = ext.createModelSelectHandler(makePi(setModel));
+    const { setWidget, notify, ctx } = makeCtx(t);
+    const event: ModelSelectEvent = {
+      type: 'model_select',
+      model: { provider: 'codexbar', id: 'cheap' } as unknown as Model<any>,
+      previousModel: undefined,
+      source: 'set',
+    };
+    await handler(event, ctx);
+    assert.equal(runSwitchMock.mock.callCount(), 1);
+    assert.equal(setModel.mock.callCount(), 1);
+    assert.equal(setWidget.mock.callCount(), 1);
+    assert.ok(notify.mock.calls.some((c: any) => c.arguments[0] === '✅ cheap → openai/gpt-4o' && c.arguments[1] === 'info'));
   });
 });
 

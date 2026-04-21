@@ -74,7 +74,7 @@ export type ParsedSlashArgs =
   | { action: SwitchAction; query?: string; excludeProviders: string[]; dryRun: boolean }
   | { error: string };
 
-const BUILT_IN_KEYS = ['cheap', 'vision', 'reasoning', 'long-context'] as const;
+export const BUILT_IN_KEYS = ['cheap', 'vision', 'reasoning', 'long-context'] as const;
 export type BuiltInKey = (typeof BUILT_IN_KEYS)[number];
 
 const LONG_CONTEXT_WINDOW_THRESHOLD = 200_000;
@@ -304,10 +304,10 @@ export function resolveCandidates(
     const id = q.slice(slashIdx + 1);
     const exactMatches = models.filter(m => m.provider === provider && m.id === id);
     if (exactMatches.length > 0) {
-      return {
-        tier: 'exact',
-        candidates: exactMatches.filter(m => !exclude.has(m.provider)),
-      };
+      const candidates = exactMatches.filter(m => !exclude.has(m.provider));
+      if (candidates.length > 0) {
+        return { tier: 'exact', candidates };
+      }
     }
   }
 
@@ -318,27 +318,26 @@ export function resolveCandidates(
     m.provider.toLowerCase() === qLower
   );
   if (registryMatches.length > 0) {
-    return {
-      tier: 'registry',
-      candidates: registryMatches.filter(m => !exclude.has(m.provider)),
-    };
+    const candidates = registryMatches.filter(m => !exclude.has(m.provider));
+    if (candidates.length > 0) {
+      return { tier: 'registry', candidates };
+    }
   }
 
   const aliasTargets = aliases[qLower];
   if (aliasTargets) {
-    const candidates = resolveAliasTargets(aliasTargets, models);
-    return {
-      tier: 'alias',
-      candidates: candidates.filter(m => !exclude.has(m.provider)),
-    };
+    const candidates = resolveAliasTargets(aliasTargets, models).filter(m => !exclude.has(m.provider));
+    if (candidates.length > 0) {
+      return { tier: 'alias', candidates };
+    }
   }
 
   const builtInModels = resolveBuiltIn(q as BuiltInKey, models);
   if (builtInModels.length > 0) {
-    return {
-      tier: 'builtin',
-      candidates: builtInModels.filter(m => !exclude.has(m.provider)),
-    };
+    const candidates = builtInModels.filter(m => !exclude.has(m.provider));
+    if (candidates.length > 0) {
+      return { tier: 'builtin', candidates };
+    }
   }
 
   const queryTokens = tokenize(q);

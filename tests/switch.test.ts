@@ -338,14 +338,16 @@ describe('resolveCandidates', () => {
     assert.equal(result.candidates.length, 0);
   });
 
-  test('excludeProviders removes matching providers', () => {
-    const result = resolveCandidates('anthropic', mixedModels, {}, ['anthropic']);
+  test('excludeProviders removes matching providers from registry tier', () => {
+    const models = [
+      model({ id: 'model-a', provider: 'openai', name: 'Shared Model' }),
+      model({ id: 'model-b', provider: 'anthropic', name: 'Shared Model' }),
+    ];
+    const result = resolveCandidates('Shared Model', models, {}, ['openai']);
 
     assert.equal(result.tier, 'registry');
-    for (const m of result.candidates) {
-      assert.notEqual(m.provider, 'anthropic',
-        `excluded provider "anthropic" should not appear in candidates, found: ${m.id}`);
-    }
+    assert.equal(result.candidates.length, 1);
+    assert.equal(result.candidates[0]!.provider, 'anthropic');
   });
 
   test('excludeProviders works with built-in tier', () => {
@@ -356,6 +358,23 @@ describe('resolveCandidates', () => {
       assert.notEqual(m.provider, 'openai',
         `excluded provider "openai" should not appear in candidates, found: ${m.id}`);
     }
+  });
+
+  test('excludeProviders prevents virtual codexbar model from colliding with built-in key', () => {
+    const models = [
+      model({ id: 'cheap', provider: 'codexbar', cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }),
+      model({ id: 'gpt-4o-mini', provider: 'openai', cost: { input: 0.15, output: 0.6, cacheRead: 0, cacheWrite: 0 } }),
+    ];
+
+    // Without exclusion, the virtual codexbar model wins via registry tier (id === 'cheap')
+    const withoutExclude = resolveCandidates('cheap', models, {});
+    assert.equal(withoutExclude.tier, 'registry');
+    assert.equal(withoutExclude.candidates[0]!.provider, 'codexbar');
+
+    // With codexbar excluded, falls through to built-in tier
+    const withExclude = resolveCandidates('cheap', models, {}, ['codexbar']);
+    assert.equal(withExclude.tier, 'builtin');
+    assert.ok(withExclude.candidates.every(m => m.provider !== 'codexbar'));
   });
 });
 

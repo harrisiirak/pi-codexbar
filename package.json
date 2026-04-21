@@ -1,6 +1,6 @@
 {
   "name": "pi-codexbar",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Pi extension wrapper for CodexBar provider state and controls",
   "type": "module",
   "main": "src/index.ts",
@@ -20,6 +20,14 @@
     "codexbar",
     "cli"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harrisiirak/pi-codexbar.git"
+  },
+  "homepage": "https://github.com/harrisiirak/pi-codexbar#readme",
+  "bugs": {
+    "url": "https://github.com/harrisiirak/pi-codexbar/issues"
+  },
   "author": "",
   "license": "MIT",
   "engines": {

@@ -13,7 +13,8 @@
   ],
   "scripts": {
     "test": "node --experimental-test-module-mocks --import tsx --test 'tests/**/*.test.ts'",
-    "run": "node --import tsx src/index.ts"
+    "run": "node --import tsx src/index.ts",
+    "release": "commit-and-tag-version"
   },
   "keywords": [
     "pi-extension",
@@ -37,11 +38,12 @@
     "@sinclair/typebox": "0.34.49"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": ">=0.67.0",
-    "@mariozechner/pi-ai": ">=0.67.0"
+    "@mariozechner/pi-ai": ">=0.67.0",
+    "@mariozechner/pi-coding-agent": ">=0.67.0"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "commit-and-tag-version": "^12.7.1",
     "tsx": "^4.21.0"
   }
 }

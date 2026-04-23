@@ -90,7 +90,7 @@ function applyFormat(fmt: string, tokens: TokenValues, coloredSep: string): stri
   for (const [key, value] of Object.entries(tokens)) {
     result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
   }
-  const segments = result.split('│');
+  const segments = result.split(/[|│]/);
   const nonEmpty = segments.filter(seg => {
     const plain = stripAnsi(seg).trim();
     return plain.length > 0 && plain !== '⏱';

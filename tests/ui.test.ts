@@ -115,6 +115,28 @@ describe('formatUsageFooter', () => {
     assert.ok(plain.includes('5%'), 'secondary should show 5%');
     assert.ok(!plain.includes('7.000000000000001%'), 'should not show raw float');
   });
+
+  test('drops ASCII separators around empty monthly section', () => {
+    const state: UsageState = {
+      selectedProvider: 'kimi',
+      entries: [{
+        providerId: 'kimi',
+        status: 'ok',
+        metrics: {
+          primary: { usedPercent: 7, windowMinutes: 300, resetsAt: null, resetDescription: null },
+          secondary: { usedPercent: 5, windowMinutes: 10080, resetsAt: null, resetDescription: null },
+          tertiary: null,
+          creditsRemaining: null,
+          loginMethod: null,
+          updatedAt: null,
+        },
+      }],
+      fetchedAt: Date.now(),
+    };
+
+    const plain = stripAnsi(formatUsageFooter(state));
+    assert.ok(!plain.includes('|'), 'should not leave ASCII separator when monthly is empty');
+  });
 });
 
 describe('stripAnsi', () => {

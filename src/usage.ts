@@ -162,12 +162,32 @@ function toWindow(raw: RawUsageWindow | null | undefined): UsageWindow | null {
   };
 }
 
-function toMetrics(raw: RawProviderEntry): UsageMetrics {
+function normalizeUsageWindows(raw: RawProviderEntry): Pick<UsageMetrics, 'primary' | 'secondary' | 'tertiary'> {
   const usage = raw.usage ?? {};
+  const providerId = String(raw.provider ?? raw.id ?? '').toLowerCase();
+
+  if (providerId === 'kimi') {
+    return {
+      primary: toWindow(usage.secondary),
+      secondary: toWindow(usage.primary),
+      tertiary: toWindow(usage.tertiary),
+    };
+  }
+
   return {
     primary: toWindow(usage.primary),
     secondary: toWindow(usage.secondary),
     tertiary: toWindow(usage.tertiary),
+  };
+}
+
+function toMetrics(raw: RawProviderEntry): UsageMetrics {
+  const usage = raw.usage ?? {};
+  const windows = normalizeUsageWindows(raw);
+  return {
+    primary: windows.primary,
+    secondary: windows.secondary,
+    tertiary: windows.tertiary,
     creditsRemaining: typeof usage.creditsRemaining === 'number' ? usage.creditsRemaining : null,
     loginMethod: typeof usage.loginMethod === 'string' ? usage.loginMethod : null,
     updatedAt: typeof usage.updatedAt === 'string' ? usage.updatedAt : null,

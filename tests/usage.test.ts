@@ -17,6 +17,16 @@ const CLAUDE_USAGE = [{
   },
 }];
 
+const KIMI_USAGE = [{
+  provider: 'kimi',
+  usage: {
+    primary: { usedPercent: 5, resetsAt: '2026-04-24T09:00:33Z', resetDescription: '5/100 requests' },
+    secondary: { usedPercent: 7, windowMinutes: 300, resetsAt: '2026-04-23T16:00:33Z', resetDescription: 'Rate: 7/100 per 5 hours' },
+    tertiary: null,
+    updatedAt: '2026-04-23T13:37:08Z',
+  },
+}];
+
 const MIXED_PAYLOAD = {
   providers: [
     { provider: 'openai', usage: { primary: { usedPercent: 44, windowMinutes: 300, resetsAt: '2026-05-01T00:00:00Z' }, secondary: null, tertiary: null, creditsRemaining: 12.5 } },
@@ -75,6 +85,25 @@ describe('getProviderUsageState', () => {
     assert.equal(state.entries[1].status, 'error');
     if (state.entries[1].status === 'error') {
       assert.equal(state.entries[1].error.kind, 'auth');
+    }
+  });
+
+  test('normalizes kimi 5-hour rate limit into primary window', async (t) => {
+    await resetUsageCache();
+    t.after(resetUsageCache);
+    mockExec(t, { 'usage --provider kimi --format json': KIMI_USAGE });
+
+    const state = await getProviderUsageState('kimi');
+
+    assert.equal(state.entries[0].providerId, 'kimi');
+    assert.equal(state.entries[0].status, 'ok');
+    if (state.entries[0].status === 'ok') {
+      assert.equal(state.entries[0].metrics.primary?.usedPercent, 7);
+      assert.equal(state.entries[0].metrics.primary?.windowMinutes, 300);
+      assert.equal(state.entries[0].metrics.primary?.resetDescription, 'Rate: 7/100 per 5 hours');
+      assert.equal(state.entries[0].metrics.secondary?.usedPercent, 5);
+      assert.equal(state.entries[0].metrics.secondary?.windowMinutes, null);
+      assert.equal(state.entries[0].metrics.secondary?.resetDescription, '5/100 requests');
     }
   });
 });

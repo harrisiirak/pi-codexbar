@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.0.4](https://github.com/harrisiirak/pi-codexbar/compare/v1.0.3...v1.0.4) (2026-04-23)
+
+
+### Bug Fixes
+
+* **ui:** round fractional usage percentages in footer ([8f71dde](https://github.com/harrisiirak/pi-codexbar/commit/8f71ddeeacdd7a78ff1923c52689b0832137163e))
+* **usage:** normalize kimi primary/secondary window mapping ([b7da11b](https://github.com/harrisiirak/pi-codexbar/commit/b7da11b6fea162ca2798d9be37e70950afeb0114))
+
 ## [1.0.3](https://github.com/harrisiirak/pi-codexbar/compare/v1.0.2...v1.0.3) (2026-04-21)
 
 

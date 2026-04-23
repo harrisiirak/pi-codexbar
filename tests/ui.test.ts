@@ -91,6 +91,30 @@ describe('formatUsageFooter', () => {
     assert.ok(colored.includes('\x1b['), 'should contain ANSI codes');
     assert.ok(!stripAnsi(colored).includes('\x1b['), 'stripped should not contain ANSI');
   });
+
+  test('rounds fractional usage percentages', () => {
+    const state: UsageState = {
+      selectedProvider: 'kimi',
+      entries: [{
+        providerId: 'kimi',
+        status: 'ok',
+        metrics: {
+          primary: { usedPercent: 7.000000000000001, windowMinutes: 300, resetsAt: null, resetDescription: null },
+          secondary: { usedPercent: 5, windowMinutes: 10080, resetsAt: null, resetDescription: null },
+          tertiary: null,
+          creditsRemaining: null,
+          loginMethod: null,
+          updatedAt: null,
+        },
+      }],
+      fetchedAt: Date.now(),
+    };
+
+    const plain = stripAnsi(formatUsageFooter(state));
+    assert.ok(plain.includes('7%'), 'primary should round to 7%');
+    assert.ok(plain.includes('5%'), 'secondary should show 5%');
+    assert.ok(!plain.includes('7.000000000000001%'), 'should not show raw float');
+  });
 });
 
 describe('stripAnsi', () => {

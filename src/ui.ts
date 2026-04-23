@@ -34,7 +34,11 @@ function windowLabel(w: UsageWindow | null): string {
 }
 
 function pctText(pct: number | null): string {
-  return pct == null ? '—' : `${pct}%`;
+  if (pct == null) {
+    return '—';
+  }
+  const rounded = Math.round(pct);
+  return `${rounded}%`;
 }
 
 function formatWindowColored(label: string, w: UsageWindow | null, normalColor: string, highColor: string, threshold: number): string {

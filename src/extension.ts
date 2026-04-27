@@ -1,4 +1,4 @@
-import { Type } from '@sinclair/typebox';
+import { Type } from 'typebox';
 import { formatUsageFooter, renderWidget, refreshFooter, hideFooter } from './ui.ts';
 import { stripAnsi, loadSettings, updateSetting } from './settings.ts';
 import { mapProviderToCodexbar } from './mappings.ts';

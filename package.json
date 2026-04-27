@@ -1,6 +1,6 @@
 {
   "name": "pi-codexbar",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Pi extension wrapper for CodexBar provider state and controls",
   "type": "module",
   "main": "src/index.ts",
